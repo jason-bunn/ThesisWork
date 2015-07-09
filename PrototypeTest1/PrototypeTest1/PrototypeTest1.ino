@@ -19,7 +19,7 @@ const int button_4 = 9;     //L Key
 const int button_5 = 10;    //V Key
 const int button_6 = 11;    //H Key
 
-//character constants
+//character constants 
 const char FORWARD = 'w';
 const char STRAFE_LEFT = 'a';
 const char STRAFE_RIGHT = 'd';
