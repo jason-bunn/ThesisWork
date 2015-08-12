@@ -7,11 +7,13 @@
  *  and block any code from being processed until a computer attaches to
  *  the serial port.  Once a user connects to the serial port, the program
  *  will continue, and debug messages will be output to it.
+ */
 //#define DEBUG
 
 /* Define DEBUG2 to enable extra (possibly extremely cluttery and annoying)
  *  debug messages to be output over the Arduino's serial port.  If you want
  *  this to work properly, you'll need to define DEBUG also.
+ */
 //#define DEBUG2
 
 /* Define USEKB to enable the Arduino to act as a USB HID keyboard.  It is
@@ -20,6 +22,7 @@
  *  board.  Any time you attempt new or modified functionality with the
  *  controller, it makes sense to comment this define out and enable the
  *  define for DEBUG and possibly also DEBUG2.
+ */
 #define USEKB
 
 // Set pin numbers for buttons -- Arduino Leonardo
