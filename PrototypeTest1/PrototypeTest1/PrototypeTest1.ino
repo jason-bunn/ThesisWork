@@ -1,186 +1,289 @@
 /*
  * Prototype keyboard emulation control
  * Bunn - Stanton 7-7-2015
- * 
  */
 
-//set pin numbers for buttons
-//joystick buttons
-const int joystick_left = 2;   //Joystick left
-const int joystick_down = 3;   //Joystick down
-const int joystick_right = 4;  //Joystick right
-const int joystick_up = 5;     //Joystick up
+//#define DEBUG
+#define USEKB
+//#define DEBUG2
 
-//action buttons
-const int button_1 = 6;     //left shift
-const int button_2 = 7;     //spacebar
-const int button_3 = 8;     //M key
-const int button_4 = 9;     //L Key
-const int button_5 = 10;    //V Key
-const int button_6 = 11;    //H Key
+// Set pin numbers for buttons -- Arduino Leonardo
+// - Joystick buttons
+const int joystick_up = 5;
+const int joystick_left = 2;
+const int joystick_right = 3;
+const int joystick_down = 4;
+// - Action buttons
+const int button_1 = 6;
+const int button_2 = 7;
+const int button_3 = 8;
+const int button_4 = 9;
+const int button_5 = 10;
+const int button_6 = 11;
 
-//character constants 
+// Character constants
+// - These are set to the default keybindings for Team Fortress 2
 const char FORWARD = 'w';
 const char STRAFE_LEFT = 'a';
-const char STRAFE_RIGHT = 'd';
 const char BACKWARD = 's';
+const char STRAFE_RIGHT = 'd';
 const char JUMP = ' ';
-const char CROUCH = KEY_LEFT_CTRL;
+const char DUCK = KEY_LEFT_CTRL;
 const char RELOAD = 'r';
 const char VOICE = 'v';
 const char USE_ITEM = 'h';
 const char DROP_INT = 'l';
+const char LAST_WEAPON = 'q';
 
-
-//total number of buttons
+// Total number of buttons
 const int numButtons = 10;
 
+// Array that stores the current "pressed" state of all buttons
 bool buttonStates[numButtons];
 
-void setup() {
-  // put your setup code here, to run once:
-  pinMode(joystick_left, INPUT);
-  pinMode(joystick_down, INPUT);
-  pinMode(joystick_right, INPUT);
-  pinMode(joystick_up, INPUT);
-  pinMode(button_1, INPUT);
-  pinMode(button_2, INPUT);
-  pinMode(button_3, INPUT);
-  pinMode(button_4, INPUT);
-  pinMode(button_5, INPUT);
-  pinMode(button_6, INPUT);
+/* Array that stores the current debounce state of the buttons.
+ *   0 - not tracking a debounce action
+ *   1 - tracking a button press debounce action
+ *   2 - tracking a button release debounce action
+ */
+uint8_t debounceStates[numButtons];
 
-  for (int i = 0; i < numButtons; i++)
+// Times denoting the beginning of a debounce sequence for each button
+long lastDebounceTimes[numButtons];
+
+// Time in milliseconds to wait to debounce a key press/release
+uint8_t debounceDelay = 5;
+
+// Array of key codes we wish to assign to each button
+char buttonValues[numButtons] = {
+  FORWARD,
+  STRAFE_LEFT,
+  BACKWARD,
+  STRAFE_RIGHT,
+  JUMP,
+  DUCK,
+  RELOAD,
+  USE_ITEM,
+  LAST_WEAPON,
+  VOICE
+};
+
+void setup()
+{
+  // Initialize button and debounce tracking arrays to '0'
+  for ( int i = 0; i < numButtons; i++ )
   {
     buttonStates[i] = false;
+    debounceStates[i] = 0;
+    lastDebounceTimes[i] = 0;
   }
-  
-  Keyboard.begin();
 
+  // Set up pin states
+  pinMode(joystick_left, INPUT_PULLUP);
+  pinMode(joystick_down, INPUT_PULLUP);
+  pinMode(joystick_right, INPUT_PULLUP);
+  pinMode(joystick_up, INPUT_PULLUP);
+  pinMode(button_1, INPUT_PULLUP);
+  pinMode(button_2, INPUT_PULLUP);
+  pinMode(button_3, INPUT_PULLUP);
+  pinMode(button_4, INPUT_PULLUP);
+  pinMode(button_5, INPUT_PULLUP);
+  pinMode(button_6, INPUT_PULLUP);
+
+#ifdef DEBUG
+  // In debug mode, we need to use the Serial port to see what is going on in the program
+  Serial.begin(9600);
+  while (!Serial) {}
+#endif
+#ifdef USEKB
+  // Register Arduino as a USB HID Keyboard and begin tracking keypresses
+  Keyboard.begin();
+#endif
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
+/*
+ * button_press() -
+ *   Use the USB HID Keyboard functionality to signal to the computer
+ * that a keyboard key has been pressed.  The integer value "btnNumber"
+ * is and array index that corresponds to the key code in the buttonValues[]
+ * char array, the button's pressed state in buttonStates[], whether we
+ * are tracking a debounce event in debounceStates[], and if so, when thatwad rh
+ * debounce event began in the lastDebounceTimes[] array.
+ *   This function allows easy enabling of debug code and also handles
+ * the initiation of debounce tracking for the button being pressed.
+ */
+void button_press(uint8_t btnNumber)
+{
+  // Check that the button isn't already being debounced
+  if (debounceStates[btnNumber] == 0)
+  {
+    // Set button's debounce state to "1", for "pressed"
+    debounceStates[btnNumber] = 1;
+    // Set time that the debounce action began
+    lastDebounceTimes[btnNumber] = millis();
+#ifdef DEBUG
+    Serial.print("Starting debounce tracking on button press: ");
+    Serial.println(btnNumber, DEC);
+    Serial.print("  Press time: ");
+    Serial.println(lastDebounceTimes[btnNumber]);
+#endif
+  }
+#ifdef DEBUG2
+  Serial.print(micros());
+  Serial.print(" - Timestamp, button press: ");
+  Serial.println(btnNumber);
+#endif
+}
 
-  //check if button is being pressed
-  if(digitalRead(joystick_left) == HIGH && buttonStates[0] == false)
+/*
+ * button_release() -
+ *   Use the USB HID Keyboard functionality to signal to the computer
+ * that a keyboard key has been released.  The integer value "btnNumber"
+ * corresponds to the key code in the buttonValues[] char array.
+ *   This function allows easy enabling of debug code and also handles
+ * the initiation of debounce tracking for the button being released.
+ */
+void button_release(uint8_t btnNumber)
+{
+  // Check that the button isn't already being debounced
+  if (debounceStates[btnNumber] == 0)
   {
-    Keyboard.press(STRAFE_LEFT);
-    buttonStates[0] = true;
+    // Set button's debounce state to "2", for "released"
+    debounceStates[btnNumber] = 2;
+    // Set time that the debounce action began
+    lastDebounceTimes[btnNumber] = millis();
+#ifdef DEBUG
+    Serial.print("Starting debounce tracking on button release: ");
+    Serial.println(btnNumber, DEC);
+    Serial.print("  Press time: ");
+    Serial.println(lastDebounceTimes[btnNumber]); // */
+#endif
   }
-  
-  if(digitalRead(joystick_down) == HIGH && buttonStates[1] == false)
-  {
-    Keyboard.press(BACKWARD);
-    buttonStates[1] = true;
-  }
+#ifdef DEBUG2
+  Serial.print(micros());
+  Serial.print(" - Timestamp, button release: ");
+  Serial.println(btnNumber);
+#endif
+}
 
-  if(digitalRead(joystick_right) == HIGH && buttonStates[2] == false)
+void check_debounce()
+{
+  // Test every button for a debounce action
+  for ( int i = 0; i < numButtons; i++ )
   {
-    Keyboard.press(STRAFE_RIGHT);
-    buttonStates[2] = true;
-  }
-  if(digitalRead(joystick_up) == HIGH && buttonStates[3] == false)
-  {
-    Keyboard.press(FORWARD);
-    buttonStates[3] = true;
-  }
+    // If debounceStates[i] is 1 or 2, we are tracking a debounce.  If it's 0, skip this button.
+    if (debounceStates[i] > 0)
+    {
+      /* If millis() is less than lastDebounceTimes for this button, that means
+       *  that the timer has overrun the "long" data type, causing it to reset
+       *  to 0 and begin counting again from there.  That also means that
+       *  lastDebounceTimes[i] was likely within 10ms of the overrun point, which
+       *  means we will never be able to complete the debounce action without
+       *  setting it to something else.  Since we don't want to set it to less
+       *  than zero, we pick 0 as the value.  That means we could be debouncing
+       *  for up to 20ms, but it keeps us from having to check for the size of
+       *  the data type and how close we are to it every time we set lastDebounceTimes.
+       */
+      if (millis() < lastDebounceTimes[i])
+        lastDebounceTimes[i] = 0;
 
-  if(digitalRead(button_1) == HIGH && buttonStates[4] == false)
-  {
-    Keyboard.press(CROUCH);
-    buttonStates[4] = true;
+      // Check to see that debounceDelay ms have passed since we began tracking debounce for this button
+      if (millis() - lastDebounceTimes[i] >= debounceDelay)
+      {
+        if (debounceStates[i] == 1)
+        {
+          // Change the button state to true
+          buttonStates[i] = true;
+#ifdef DEBUG
+          Serial.print("Button press complete: ");
+          Serial.println(i);
+          Serial.print("Completion time: ");
+          Serial.println(millis());
+#endif
+#ifdef USEKB
+          // Because we are tracking a button "press" (1), press the button
+          Keyboard.press(buttonValues[i]);
+#endif
+        }
+        if (debounceStates[i] == 2)
+        {
+          // Change the button state to false
+          lastDebounceTimes[i] = 0;
+          buttonStates[i] = false;
+#ifdef DEBUG
+          Serial.print("Button release complete: ");
+          Serial.println(i);
+          Serial.print("Completion time: ");
+          Serial.println(millis());
+#endif
+#ifdef USEKB
+          // Because we are tracking a button "release" (2), release the button
+          Keyboard.release(buttonValues[i]);
+#endif
+        }
+        // Reset the lastDebounceTimes value to 0 and reset the debounceState value to 0
+        lastDebounceTimes[i] = 0;
+        debounceStates[i] = 0;
+      }
+    }
   }
+}
 
-  if(digitalRead(button_2) == HIGH && buttonStates[5] == false)
-  {
-    Keyboard.press(JUMP);
-    buttonStates[5] = true;
-  }
+void loop()
+{
+  /******************************************************************
+  * Check if any buttons have gone from not pressed to pressed.     *
+  * If so, we will pass this info to the button_press() function.   *
+  ******************************************************************/
 
-  if(digitalRead(button_3) == HIGH && buttonStates[6] == false)
-  {
-    Keyboard.press(RELOAD);
-    buttonStates[6] = true;
-  }
+  if (digitalRead(joystick_up) == LOW && buttonStates[0] == false)
+    button_press(0);
+  if (digitalRead(joystick_left) == LOW && buttonStates[1] == false)
+    button_press(1);
+  if (digitalRead(joystick_down) == LOW && buttonStates[2] == false)
+    button_press(2);
+  if (digitalRead(joystick_right) == LOW && buttonStates[3] == false)
+    button_press(3);
+  if (digitalRead(button_1) == LOW && buttonStates[4] == false)
+    button_press(4);
+  if (digitalRead(button_2) == LOW && buttonStates[5] == false)
+    button_press(5);
+  if (digitalRead(button_3) == LOW && buttonStates[6] == false)
+    button_press(6);
+  if (digitalRead(button_4) == LOW && buttonStates[7] == false)
+    button_press(7);
+  if (digitalRead(button_5) == LOW && buttonStates[8] == false)
+    button_press(8);
+  if (digitalRead(button_6) == LOW && buttonStates[9] == false)
+    button_press(9);
 
-  if(digitalRead(button_4) == HIGH && buttonStates[7] == false)
-  {
-    Keyboard.press(USE_ITEM);
-    buttonStates[7] = true;
-  }
 
-  if(digitalRead(button_5) == HIGH && buttonStates[8] == false)
-  {
-    Keyboard.press(DROP_INT);
-    buttonStates[8] = true;
-  }
+  /******************************************************************
+  * Check if any buttons have gone from pressed to released.        *
+  * If so, we will pass this info to the button_release() function. *
+  ******************************************************************/
 
-  if(digitalRead(button_6) == HIGH && buttonStates[9] == false)
-  {
-    Keyboard.press(VOICE);
-    buttonStates[9] == true;
-  }
+  if (digitalRead(joystick_up) == HIGH && buttonStates[0] == true)
+    button_release(0);
+  if (digitalRead(joystick_left) == HIGH && buttonStates[1] == true)
+    button_release(1);
+  if (digitalRead(joystick_down) == HIGH && buttonStates[2] == true)
+    button_release(2);
+  if (digitalRead(joystick_right) == HIGH && buttonStates[3] == true)
+    button_release(3);
+  if (digitalRead(button_1) == HIGH && buttonStates[4] == true)
+    button_release(4);
+  if (digitalRead(button_2) == HIGH && buttonStates[5] == true)
+    button_release(5);
+  if (digitalRead(button_3) == HIGH && buttonStates[6] == true)
+    button_release(6);
+  if (digitalRead(button_4) == HIGH && buttonStates[7] == true)
+    button_release(7);
+  if (digitalRead(button_5) == HIGH && buttonStates[8] == true)
+    button_release(8);
+  if (digitalRead(button_6) == HIGH && buttonStates[9] == true)
+    button_release(9);
 
-  //
-  //
-  //
-  //check if buttons have been released
-  if (digitalRead(joystick_left) == LOW)
-  {
-    Keyboard.release(STRAFE_LEFT);
-    buttonStates[0] = false;
-  }
-  if (digitalRead(joystick_down) == LOW)
-  {
-    Keyboard.release(BACKWARD);
-    buttonStates[1] = false;
-  }
-  if (digitalRead(joystick_right) == LOW)
-  {
-    Keyboard.release(STRAFE_RIGHT);
-    buttonStates[2] = false;
-  }
-  if (digitalRead(joystick_up) == LOW)
-  {
-    Keyboard.release(FORWARD);
-    buttonStates[3] = false;
-  }
-  if(digitalRead(button_1) == LOW)
-  {
-    Keyboard.release(CROUCH);
-    buttonStates[4] = false;
- }
-  if(digitalRead(button_2) == LOW)
-  {
-    Keyboard.release(JUMP);
-    buttonStates[5] = false;
-  }
-
-  if(digitalRead(button_3) == LOW)
-  {
-    Keyboard.release(RELOAD);
-    buttonStates[6] = false;
-  }
-
-  if(digitalRead(button_4) == LOW)
-  {
-    Keyboard.release(USE_ITEM);
-    buttonStates[7] = false;
-  }
-
-  if(digitalRead(button_5) == LOW)
-  {
-    Keyboard.release(DROP_INT);
-    buttonStates[8] = false;
-  }
-
-  if(digitalRead(button_6) == LOW)
-  {
-    Keyboard.release(VOICE);
-    buttonStates[9] = false;
-  }
-
-  
-  
+  // Every time through the loop, we check the debounce state of every button
+  check_debounce();
 }
