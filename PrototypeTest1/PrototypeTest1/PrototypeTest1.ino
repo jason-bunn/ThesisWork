@@ -16,14 +16,8 @@
  */
 //#define DEBUG2
 
-/* Define USEKB to enable the Arduino to act as a USB HID keyboard.  It is
- *  extremely handy at times to comment this define to prevent the Arduino
- *  from hijacking the Arduino IDE when you are attempting to program the
- *  board.  Any time you attempt new or modified functionality with the
- *  controller, it makes sense to comment this define out and enable the
- *  define for DEBUG and possibly also DEBUG2.
- */
-#define USEKB
+// Set pin numbers for outputs
+const int led_kb_on = 1;
 
 // Set pin numbers for buttons -- Arduino Leonardo
 // - Joystick buttons
@@ -38,6 +32,8 @@ const int button_3 = 8;
 const int button_4 = 9;
 const int button_5 = 10;
 const int button_6 = 11;
+// Control buttons
+const int button_kb_onoff = 0;
 
 // Character constants
 // - These are set to the default keybindings for Team Fortress 2
@@ -54,10 +50,13 @@ const char DROP_INT = 'l';
 const char LAST_WEAPON = 'q';
 
 // Total number of buttons
-const int numButtons = 10;
+const int numButtons = 11;
 
 // Array that stores the current "pressed" state of all buttons
 bool buttonStates[numButtons];
+
+// Variable that determines whether keyboard functionality is enabled
+bool kbOn = false;
 
 /* Array that stores the current debounce state of the buttons.
  *   0 - not tracking a debounce action
@@ -74,10 +73,10 @@ uint8_t debounceDelay = 5;
 
 // Array of key codes we wish to assign to each button
 char buttonValues[numButtons] = {
+  STRAFE_RIGHT,
   FORWARD,
   STRAFE_LEFT,
   BACKWARD,
-  STRAFE_RIGHT,
   JUMP,
   DUCK,
   RELOAD,
@@ -107,16 +106,17 @@ void setup()
   pinMode(button_4, INPUT_PULLUP);
   pinMode(button_5, INPUT_PULLUP);
   pinMode(button_6, INPUT_PULLUP);
+  pinMode(button_kb_onoff, INPUT_PULLUP);
+  pinMode(led_kb_on, OUTPUT);
+  digitalWrite(led_kb_on, LOW);
 
 #ifdef DEBUG
   // In debug mode, we need to use the Serial port to see what is going on in the program
   Serial.begin(9600);
   while (!Serial) {}
 #endif
-#ifdef USEKB
   // Register Arduino as a USB HID Keyboard and begin tracking keypresses
   Keyboard.begin();
-#endif
 }
 
 /*
@@ -184,6 +184,13 @@ void button_release(uint8_t btnNumber)
 #endif
 }
 
+/*
+ * check_debounce() -
+ *   This function loops from 0 through numButtons-1 to check the current
+ * debounce status of all buttons.  Any buttons that are successfully debounced
+ * have their functionality carried out, assuming that the button's
+ * functionality is currently enabled.
+ */
 void check_debounce()
 {
   // Test every button for a debounce action
@@ -218,10 +225,16 @@ void check_debounce()
           Serial.print("Completion time: ");
           Serial.println(millis());
 #endif
-#ifdef USEKB
-          // Because we are tracking a button "press" (1), press the button
-          Keyboard.press(buttonValues[i]);
-#endif
+          if (i == numButtons - 1)
+          {
+            // Since this is the keyboard enabler button, enable the keyboard
+            keyboard_enable();
+          }
+          else
+          {
+            // Because we are tracking a button "press" (1), press the button
+            Keyboard.press(buttonValues[i]);
+          }
         }
         if (debounceStates[i] == 2)
         {
@@ -234,10 +247,16 @@ void check_debounce()
           Serial.print("Completion time: ");
           Serial.println(millis());
 #endif
-#ifdef USEKB
-          // Because we are tracking a button "release" (2), release the button
-          Keyboard.release(buttonValues[i]);
-#endif
+          if (i == numButtons - 1)
+          {
+            // Since this is the keyboard enabler button, enable the keyboard
+            keyboard_disable();
+          }
+          else
+          {
+            // Because we are tracking a button "release" (2), release the button
+            Keyboard.release(buttonValues[i]);
+          }
         }
         // Reset the lastDebounceTimes value to 0 and reset the debounceState value to 0
         lastDebounceTimes[i] = 0;
@@ -247,6 +266,39 @@ void check_debounce()
   }
 }
 
+/*
+ * keyboard_enable() -
+ *   This function is called when the button_kb_onoff pin is pulled low.
+ * Here, we need to enable the HID keyboard functionality and light the
+ * LED that signals that the controller is in operational mode.
+ */
+void keyboard_enable()
+{
+  kbOn = true;
+  digitalWrite(led_kb_on, HIGH);
+}
+
+/*
+ * keyboard_disable() -
+ *   This function is called when the keyboard functionality of the game
+ * controller is disabled.  This requires us to set all button and debounce
+ * tracking variables to their original initialized states (0 or false),
+ * release any keyboard keys we have been pressing, and turn the LED indicating
+ * that the game controller is operational off.
+ */
+void keyboard_disable()
+{
+  for (int i = 0; i < numButtons; i++)
+  {
+    lastDebounceTimes[i] = 0;
+    debounceStates[i] = 0;
+    buttonStates[i] = false;
+    kbOn = false;
+  }
+  Keyboard.releaseAll();
+  digitalWrite(led_kb_on, LOW);
+}
+
 void loop()
 {
   /******************************************************************
@@ -254,26 +306,34 @@ void loop()
   * If so, we will pass this info to the button_press() function.   *
   ******************************************************************/
 
-  if (digitalRead(joystick_up) == LOW && buttonStates[0] == false)
-    button_press(0);
-  if (digitalRead(joystick_left) == LOW && buttonStates[1] == false)
-    button_press(1);
-  if (digitalRead(joystick_down) == LOW && buttonStates[2] == false)
-    button_press(2);
-  if (digitalRead(joystick_right) == LOW && buttonStates[3] == false)
-    button_press(3);
-  if (digitalRead(button_1) == LOW && buttonStates[4] == false)
-    button_press(4);
-  if (digitalRead(button_2) == LOW && buttonStates[5] == false)
-    button_press(5);
-  if (digitalRead(button_3) == LOW && buttonStates[6] == false)
-    button_press(6);
-  if (digitalRead(button_4) == LOW && buttonStates[7] == false)
-    button_press(7);
-  if (digitalRead(button_5) == LOW && buttonStates[8] == false)
-    button_press(8);
-  if (digitalRead(button_6) == LOW && buttonStates[9] == false)
-    button_press(9);
+  // Only check these buttons if keyboard functionality is on.
+  if (kbOn)
+  {
+    if (digitalRead(joystick_up) == LOW && buttonStates[0] == false)
+      button_press(0);
+    if (digitalRead(joystick_left) == LOW && buttonStates[1] == false)
+      button_press(1);
+    if (digitalRead(joystick_down) == LOW && buttonStates[2] == false)
+      button_press(2);
+    if (digitalRead(joystick_right) == LOW && buttonStates[3] == false)
+      button_press(3);
+    if (digitalRead(button_1) == LOW && buttonStates[4] == false)
+      button_press(4);
+    if (digitalRead(button_2) == LOW && buttonStates[5] == false)
+      button_press(5);
+    if (digitalRead(button_3) == LOW && buttonStates[6] == false)
+      button_press(6);
+    if (digitalRead(button_4) == LOW && buttonStates[7] == false)
+      button_press(7);
+    if (digitalRead(button_5) == LOW && buttonStates[8] == false)
+      button_press(8);
+    if (digitalRead(button_6) == LOW && buttonStates[9] == false)
+      button_press(9);
+  }
+
+  // This buttons enables/disables keyboard functionality, so we have to check it
+  if (digitalRead(button_kb_onoff) == LOW && buttonStates[10] == false)
+    button_press(10);
 
 
   /******************************************************************
@@ -281,26 +341,34 @@ void loop()
   * If so, we will pass this info to the button_release() function. *
   ******************************************************************/
 
-  if (digitalRead(joystick_up) == HIGH && buttonStates[0] == true)
-    button_release(0);
-  if (digitalRead(joystick_left) == HIGH && buttonStates[1] == true)
-    button_release(1);
-  if (digitalRead(joystick_down) == HIGH && buttonStates[2] == true)
-    button_release(2);
-  if (digitalRead(joystick_right) == HIGH && buttonStates[3] == true)
-    button_release(3);
-  if (digitalRead(button_1) == HIGH && buttonStates[4] == true)
-    button_release(4);
-  if (digitalRead(button_2) == HIGH && buttonStates[5] == true)
-    button_release(5);
-  if (digitalRead(button_3) == HIGH && buttonStates[6] == true)
-    button_release(6);
-  if (digitalRead(button_4) == HIGH && buttonStates[7] == true)
-    button_release(7);
-  if (digitalRead(button_5) == HIGH && buttonStates[8] == true)
-    button_release(8);
-  if (digitalRead(button_6) == HIGH && buttonStates[9] == true)
-    button_release(9);
+  // Only check these buttons if keyboard functionality is on.
+  if (kbOn)
+  {
+    if (digitalRead(joystick_up) == HIGH && buttonStates[0] == true)
+      button_release(0);
+    if (digitalRead(joystick_left) == HIGH && buttonStates[1] == true)
+      button_release(1);
+    if (digitalRead(joystick_down) == HIGH && buttonStates[2] == true)
+      button_release(2);
+    if (digitalRead(joystick_right) == HIGH && buttonStates[3] == true)
+      button_release(3);
+    if (digitalRead(button_1) == HIGH && buttonStates[4] == true)
+      button_release(4);
+    if (digitalRead(button_2) == HIGH && buttonStates[5] == true)
+      button_release(5);
+    if (digitalRead(button_3) == HIGH && buttonStates[6] == true)
+      button_release(6);
+    if (digitalRead(button_4) == HIGH && buttonStates[7] == true)
+      button_release(7);
+    if (digitalRead(button_5) == HIGH && buttonStates[8] == true)
+      button_release(8);
+    if (digitalRead(button_6) == HIGH && buttonStates[9] == true)
+      button_release(9);
+  }
+
+  // This buttons enables/disables keyboard functionality, so we have to check it
+  if (digitalRead(button_kb_onoff) == HIGH && buttonStates[10] == true)
+    button_release(10);
 
   // Every time through the loop, we check the debounce state of every button
   check_debounce();
