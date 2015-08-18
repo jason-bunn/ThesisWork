@@ -16,6 +16,12 @@
  */
 //#define DEBUG2
 
+// Include the "Pluggable" HID and Keyboard libraries, rather than the
+//  old core Keyboard/Mouse libraries.  Possibly able to implement
+//  NKRO with the newer pluggable libs.
+#include "Keyboard.h"
+#include "HID.h"
+
 // Set pin numbers for outputs
 const int led_kb_on = 1;
 
