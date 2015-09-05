@@ -3,6 +3,15 @@
  * Bunn - Stanton 7-7-2015
  */
 
+/* Include the "Pluggable" HID and Keyboard libraries, rather than the
+ *  old core Keyboard/Mouse libraries.  Possibly able to implement
+ *  NKRO with the newer pluggable libs.
+ */
+#if (ARDUINO >= 10606)
+#include "Keyboard.h"
+#include "HID.h"
+#endif
+
 /* Define DEBUG if you want to enable the Arduino's hardware Serial port
  *  and block any code from being processed until a computer attaches to
  *  the serial port.  Once a user connects to the serial port, the program
@@ -16,11 +25,30 @@
  */
 //#define DEBUG2
 
-// Include the "Pluggable" HID and Keyboard libraries, rather than the
-//  old core Keyboard/Mouse libraries.  Possibly able to implement
-//  NKRO with the newer pluggable libs.
-#include "Keyboard.h"
-#include "HID.h"
+/* Define this if you are using a Sanwa JLF-TP-8YT joystick oriented vertically
+ *  with the 5-pin header pointing to the right as viewed with the joystick shaft
+ *  pointing towards you.
+ */
+//#define SANWA_JLF
+
+/* Define this if you are using a Sanwa JLF-TP-8YT joystick oriented horizontally
+ *  with the 5-pin header pointing down as viewed with the joystick shaft pointing
+ *  towards you.
+ */
+//#define SANWA_JLF_90DEG_CW
+
+/* Define this if you are using a Sanwa JLF-TP-8YT joystick with the microswitch PCB
+ *  replaced with the GamerFinger optical sensor PCB, oriented vertically with the
+ *  6-pin header pointing to the right as viewed with the joystick shaft pointing
+ *  towards you.
+ */
+//#define SANWA_OPTICAL
+
+/* Define this if you are using a Sanwa JLF-TP-8YT joystick with the microswitch PCB
+ *  replaced with the GamerFinger optical sensor PCB, oriented horizontally with the
+ *  6-pin header pointing down as viewed with the joystick shaft pointing towards you.
+ */
+#define SANWA_OPTICAL_90DEG_CW
 
 // Set pin numbers for outputs
 const int led_kb_on = 1;
@@ -79,10 +107,30 @@ uint8_t debounceDelay = 5;
 
 // Array of key codes we wish to assign to each button
 char buttonValues[numButtons] = {
+#ifdef SANWA_JLF
+  FORWARD,
+  STRAFE_LEFT,
+  BACKWARD,
+  STRAFE_RIGHT,
+#endif
+#ifdef SANWA_JLF_90DEG_CW
   STRAFE_RIGHT,
   FORWARD,
   STRAFE_LEFT,
   BACKWARD,
+#endif
+#ifdef SANWA_OPTICAL
+  BACKWARD,
+  STRAFE_LEFT,
+  STRAFE_RIGHT,
+  FORWARD,
+#endif
+#ifdef SANWA_OPTICAL_90DEG_CW
+  STRAFE_LEFT,
+  FORWARD,
+  BACKWARD,
+  STRAFE_RIGHT,
+#endif
   JUMP,
   DUCK,
   RELOAD,
